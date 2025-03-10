@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>56 Card Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<style>
+    body {
+        font-family: 'Rubik', sans-serif;
+        background-color: #f0f0f0;
+    }
+    .neu-brutal {
+        background: white;
+        border: 3px solid black;
+        box-shadow: 5px 5px 0px black;
+    }
+    .neu-brutal:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 7px 7px 0px black;
+    }
+    .card {
+        aspect-ratio: 2.5/3.5;
+        background: white;
+        position: relative;
+        transition: transform 0.3s ease;
+    }
+    .card:hover {
+        transform: translateY(-10px);
+    }
+    .table {
+        width: 600px;
+        height: 600px;
+        background: #35654d;
+        border-radius: 50%;
+        position: relative;
+    }
+    .seat {
+        position: absolute;
+        transform-origin: center;
+    }
+    .heart, .diamond { color: red; }
+    .spade, .club { color: black; }
+    .loading {
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #000;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+<body class="min-h-screen p-4">
+    <div id="game" class="container mx-auto max-w-6xl">
+        <div id="loginSection" class="neu-brutal p-8 max-w-md mx-auto mb-8">
+            <h1 class="text-3xl font-bold mb-4">56 Card Game</h1>
+            <input type="text" id="playerName" placeholder="Enter your name" class="w-full p-2 mb-4 neu-brutal">
+            <div class="grid grid-cols-3 gap-4">
+                <button onclick="selectSeat(1)" class="neu-brutal p-2">Seat 1</button>
+                <button onclick="selectSeat(2)" class="neu-brutal p-2">Seat 2</button>
+                <button onclick="selectSeat(3)" class="neu-brutal p-2">Seat 3</button>
+                <button onclick="selectSeat(4)" class="neu-brutal p-2">Seat 4</button>
+                <button onclick="selectSeat(5)" class="neu-brutal p-2">Seat 5</button>
+                <button onclick="selectSeat(6)" class="neu-brutal p-2">Seat 6</button>
+            </div>
+        </div>
+
+        <div id="gameSection" class="hidden">
+            <div class="relative">
+                <div class="table mx-auto neu-brutal">
+                    <div id="discardPile" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 neu-brutal p-4">
+                        Discard Pile
+                    </div>
+                    <div id="players" class="w-full h-full"></div>
+                </div>
+            </div>
+
+            <div id="playerHand" class="fixed bottom-0 left-0 w-full bg-white p-4 neu-brutal">
+                <h3 class="text-xl mb-4">Your Cards</h3>
+                <div id="cards" class="flex gap-4 justify-center"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const appSlug = "card-game-56-897234";
+let currentPlayer = null;
+let gameState = {
+    players: {},
+    currentTurn: 1,
+    discardPile: [],
+    deck: []
+};
+
+const suits = ['♥', '♠', '♦', '♣'];
+const values = ['A', 'K', 'Q', 'J', '10', '9'];
+
+function createDeck() {
+    let deck = [];
+    for(let i = 0; i < 2; i++) { // 2 sets
+        for(let suit of suits) {
+            for(let value of values) {
+                deck.push({suit, value});
+            }
+        }
+    }
+    return shuffleDeck(deck);
+}
+
+function shuffleDeck(deck) {
+    for(let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+}
+
+async function selectSeat(seatNumber) {
+    const playerName = document.getElementById('playerName').value;
+    if(!playerName) {
+        alert('Please enter your name');
+        return;
+    }
+
+    const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer 0pNHVKlD6TZTNtbdaPzSDBBbkax1',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            appSlug,
+            action: 'read',
+            collection: 'players',
+            conditions: { seat: seatNumber }
+        })
+    });
+
+    const data = await response.json();
+    if(data.result.length > 0) {
+        alert('Seat already taken!');
+        return;
+    }
+
+    await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer 0pNHVKlD6TZTNtbdaPzSDBBbkax1',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            appSlug,
+            action: 'create',
+            collection: 'players',
+            data: {
+                name: playerName,
+                seat: seatNumber,
+                team: seatNumber % 2 === 1 ? 1 : 2,
+                sessionStart: new Date().getTime()
+            }
+        })
+    });
+
+    currentPlayer = { name: playerName, seat: seatNumber };
+    document.getElementById('loginSection').classList.add('hidden');
+    document.getElementById('gameSection').classList.remove('hidden');
+    
+    initGame();
+}
+
+async function initGame() {
+    if(Object.keys(gameState.players).length === 0) {
+        gameState.deck = createDeck();
+    }
+
+    const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer 0pNHVKlD6TZTNtbdaPzSDBBbkax1',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            appSlug,
+            action: 'read',
+            collection: 'players'
+        })
+    });
+
+    const data = await response.json();
+    for(let player of data.result) {
+        gameState.players[player.seat] = player;
+    }
+
+    renderGame();
+    setInterval(updateGame, 5000);
+}
+
+function renderGame() {
+    const playersDiv = document.getElementById('players');
+    playersDiv.innerHTML = '';
+
+    for(let i = 1; i <= 6; i++) {
+        const player = gameState.players[i] || { name: 'Empty Seat' };
+        const angle = (i - 1) * 60;
+        const playerEl = document.createElement('div');
+        playerEl.className = 'seat neu-brutal p-2';
+        playerEl.style.transform = `rotate(${angle}deg) translate(250px) rotate(-${angle}deg)`;
+        playerEl.innerHTML = `
+            <div class="text-center">
+                <div class="font-bold">${player.name}</div>
+                <div>Team ${i % 2 === 1 ? '1' : '2'}</div>
+            </div>
+        `;
+        playersDiv.appendChild(playerEl);
+    }
+
+    if(currentPlayer) {
+        renderPlayerHand();
+    }
+}
+
+function renderPlayerHand() {
+    const cardsDiv = document.getElementById('cards');
+    cardsDiv.innerHTML = '';
+
+    // Simulate 8 cards for now
+    for(let i = 0; i < 8; i++) {
+        const card = gameState.deck[i];
+        const cardEl = document.createElement('div');
+        cardEl.className = `card neu-brutal p-4 ${card.suit === '♥' || card.suit === '♦' ? 'text-red-600' : 'text-black'}`;
+        cardEl.innerHTML = `
+            <div class="text-2xl">${card.value}</div>
+            <div class="text-4xl">${card.suit}</div>
+        `;
+        cardEl.onclick = () => playCard(i);
+        cardsDiv.appendChild(cardEl);
+    }
+}
+
+function playCard(cardIndex) {
+    if(gameState.currentTurn !== currentPlayer.seat) {
+        alert("It's not your turn!");
+        return;
+    }
+
+    const card = gameState.deck.splice(cardIndex, 1)[0];
+    gameState.discardPile.push(card);
+    gameState.currentTurn = gameState.currentTurn % 6 + 1;
+    
+    updateGameState();
+    renderGame();
+}
+
+async function updateGameState() {
+    await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer 0pNHVKlD6TZTNtbdaPzSDBBbkax1',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            appSlug,
+            action: 'update',
+            collection: 'gameState',
+            conditions: {},
+            data: gameState
+        })
+    });
+}
+
+async function updateGame() {
+    const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer 0pNHVKlD6TZTNtbdaPzSDBBbkax1',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            appSlug,
+            action: 'read',
+            collection: 'gameState'
+        })
+    });
+
+    const data = await response.json();
+    if(data.result.length > 0) {
+        gameState = data.result[0];
+        renderGame();
+    }
+}
+</script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
